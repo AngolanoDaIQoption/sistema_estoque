@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import { UsuarioController } from '../controllers/UsuarioController';
+import { authMiddleware } from '../middlewares/authMiddleware';
 
-const UserRouter = Router();
+const router = Router();
 
-// Mapeando a requisição POST (Envio de dados) para a função do Controller
-UserRouter.post('/cadastrar', UsuarioController.cadastrar);
-UserRouter.post('/login', UsuarioController.login);
+router.post('/login', UsuarioController.login);
 
-export default UserRouter;
+router.get('/', authMiddleware, UsuarioController.listar);
+router.post('/', authMiddleware, UsuarioController.cadastrar);
+router.put('/:id', authMiddleware, UsuarioController.atualizar);
+router.delete('/:id', authMiddleware, UsuarioController.excluir);
+
+export default router;

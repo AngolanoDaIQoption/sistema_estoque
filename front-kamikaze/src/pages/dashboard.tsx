@@ -3,6 +3,7 @@ import Header from "../components/Header";
 import { useNavigate } from "react-router-dom";
 import { ProdutoForm } from "../components/ProdutoForm";
 import { GerenciarCategorias } from "../components/GerenciarCategorias";
+import { GerenciarUsuarios } from "../components/GerenciarUsuarios";
 
 interface Categoria {
   id: number;
@@ -145,11 +146,11 @@ export function Dashboard() {
       <Header />
 
       <div className="max-w-6xl mx-auto mt-6">
-        {/* 1. Gerenciador de Categorias */}
-        <GerenciarCategorias
-          categorias={categorias}
-          aoAtualizarCategorias={carregarDadosDoEstoque}
-        />
+        {/* 1. Accordion de Gerenciar Categorias */}
+        <GerenciarCategorias />
+
+        {/* 2. Accordion de Gerenciar Usuários (ADICIONE ESTA LINHA!) */}
+        <GerenciarUsuarios />
 
         {/* 2. Cabeçalho do Painel de Controle */}
         <div className="flex justify-between items-center my-6">
