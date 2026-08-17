@@ -149,7 +149,7 @@ export function Dashboard() {
         {/* 1. Accordion de Gerenciar Categorias */}
         <GerenciarCategorias />
 
-        {/* 2. Accordion de Gerenciar Usuários (ADICIONE ESTA LINHA!) */}
+        {/* 2. Accordion de Gerenciar Usuários */}
         <GerenciarUsuarios />
 
         {/* 2. Cabeçalho do Painel de Controle */}
