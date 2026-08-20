@@ -1,38 +1,60 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
-const SECRET_KEY = process.env.JWT_SECRET || 'chave_secreta_super_segura';
+const secretKey = process.env.JWT_SECRET || "sua_chave_secreta_aqui";
 
-export interface TokenPayload {
-  id: number;
-  email?: string;
-}
-
-export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+// Middleware para verificar se o usuário está logado
+export default function authMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
-    res.status(401).json({ mensagem: 'Token de autenticação não fornecido.' });
-    return;
+    return res.status(401).json({ erro: "Token de autenticação não fornecido." });
   }
 
-  // O formato do cabeçalho é: "Bearer <TOKEN>"
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    res.status(401).json({ mensagem: 'Erro no formato do Token.' });
-    return;
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2) {
+    return res.status(401).json({ erro: "Erro no formato do token." });
   }
 
-  const token = parts[1];
+  const [scheme, token] = parts;
+
+  if (!/^Bearer$/i.test(scheme)) {
+    return res.status(401).json({ erro: "Token malformatado." });
+  }
 
   try {
-    const decoded = jwt.verify(token, SECRET_KEY) as TokenPayload;
-    // Anexa o ID do usuário verificado dentro da requisição
-    (req as any).usuarioId = decoded.id;
+    const decoded = jwt.verify(token, secretKey);
     
-    return next(); // Token válido, pode seguir para a controller!
+    // Injeta os dados decodificados (incluindo perfil) na requisição
+    (req as any).usuario = decoded;
+    (req as any).user = decoded;
+
+    return next();
   } catch (err) {
-    res.status(401).json({ mensagem: 'Token inválido ou expirado.' });
-    return;
+    return res.status(401).json({ erro: "Token inválido ou expirado." });
   }
+}
+
+// Middleware restrito para Administradores
+export function restrigirParaADM(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const usuario = (req as any).usuario || (req as any).user;
+
+  // Imprime no terminal da API para você confirmar o que o token carregou
+  console.log("Usuário autenticado no middleware:", usuario);
+
+  if (!usuario || (usuario.perfil !== "ADM" && usuario.perfil !== "adm")) {
+    return res.status(403).json({
+      erro: "Acao nao permitida. Apenas administradores possuem este privilegio.",
+    });
+  }
+
+  return next();
 }

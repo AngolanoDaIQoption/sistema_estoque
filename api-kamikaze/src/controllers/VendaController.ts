@@ -1,80 +1,137 @@
-import { Request, Response } from 'express';
-import { VendaModel, ItemVendaComPreco } from '../models/VendaModel';
-import { db } from '../config/database';
+import { Request, Response } from "express";
+import { VendaModel, ItemVendaComPreco } from "../models/VendaModel";
+import { db } from "../config/database";
 
 export class VendaController {
   static async registrar(req: Request, res: Response) {
     try {
-      const { nome_cliente, itens } = req.body;
-      
-      // Pega o ID do usuário autenticado no token JWT
-      const usuario_id = (req as any).usuarioId || (req as any).user?.id;
+      const { nome_cliente, itens, descontoPorcentagem = 0 } = req.body;
 
-      if (!nome_cliente || !itens || !Array.isArray(itens) || itens.length === 0) {
-        return res.status(400).json({ erro: 'Informe o nome do cliente e pelo menos um item.' });
+      // 1. Pega o usuário logado via middleware
+      const usuarioLogado = (req as any).usuario || (req as any).user;
+
+      // 2. Trava de Segurança: Apenas ADM pode aplicar desconto superior a 15%
+      if (usuarioLogado?.perfil !== "ADM" && Number(descontoPorcentagem) > 15) {
+        return res.status(403).json({
+          erro: "Acesso negado: Apenas administradores podem conceder descontos superiores a 15%.",
+        });
+      }
+
+      // 3. Validação dos dados recebidos
+      if (
+        !nome_cliente ||
+        !itens ||
+        !Array.isArray(itens) ||
+        itens.length === 0
+      ) {
+        return res.status(400).json({
+          erro: "Informe o nome do cliente e pelo menos um item na venda.",
+        });
       }
 
       let valorTotalCalculado = 0;
       const itensProcessados: ItemVendaComPreco[] = [];
 
-      // Processa e valida cada item do carrinho
+      // 4. Inicia a validação de estoque e preços dos produtos
       for (const item of itens) {
-        const [rows]: any = await db.execute(
-          'SELECT id, preco, estoque FROM produtos WHERE id = ?',
-          [item.produto_id]
+        const [produtos]: any = await db.query(
+          "SELECT id, nome, preco, estoque FROM produtos WHERE id = ?",
+          [item.produto_id],
         );
 
-        if (rows.length === 0) {
-          return res.status(404).json({ erro: `Produto ID ${item.produto_id} não encontrado.` });
-        }
-
-        const produtoDoBanco = rows[0];
-
-        // Regra de Negócio: Trava do Estoque
-        if (produtoDoBanco.estoque < item.quantidade) {
-          return res.status(400).json({
-            erro: `Estoque insuficiente para o produto ID ${item.produto_id}. Disponível: ${produtoDoBanco.estoque}`
+        if (produtos.length === 0) {
+          return res.status(404).json({
+            erro: `Produto de ID ${item.produto_id} não encontrado.`,
           });
         }
 
-        // Regra de Negócio: Cálculo de Preço Seguro no Back-end
-        const precoUnitario = Number(produtoDoBanco.preco);
+        const produto = produtos[0];
+
+        if (produto.estoque < item.quantidade) {
+          return res.status(400).json({
+            erro: `Estoque insuficiente para o produto "${produto.nome}". Disponível: ${produto.estoque}, Solicitado: ${item.quantidade}`,
+          });
+        }
+
+        const precoUnitario = Number(produto.preco);
         valorTotalCalculado += precoUnitario * item.quantidade;
 
         itensProcessados.push({
           produto_id: item.produto_id,
           quantidade: item.quantidade,
-          preco_unitario: precoUnitario
+          preco_unitario: precoUnitario,
         });
       }
 
-      // Chama a transação no Model
-      const resultado = await VendaModel.criarVenda(
-        usuario_id,
+      // 5. Aplica o desconto ao valor total
+      const valorDesconto =
+        (valorTotalCalculado * Number(descontoPorcentagem)) / 100;
+      const valorComDesconto = valorTotalCalculado - valorDesconto;
+
+      // 6. Envia exatamente 4 argumentos para a VendaModel
+      const usuario_id = usuarioLogado?.id || null;
+
+      const novaVenda = await VendaModel.criarVenda(
         nome_cliente,
-        valorTotalCalculado,
-        itensProcessados
+        usuario_id,
+        valorComDesconto,
+        itensProcessados,
       );
 
       return res.status(201).json({
-        mensagem: 'Venda realizada com sucesso!',
-        vendaId: resultado.vendaId,
-        valor_total: valorTotalCalculado
+        mensagem: "Venda realizada com sucesso!",
+        venda: novaVenda,
       });
-
-    } catch (erro) {
-      console.error('Erro ao registrar venda:', erro);
-      return res.status(500).json({ erro: 'Erro interno ao processar a venda.' });
+    } catch (erro: any) {
+      console.error("Erro interno ao processar venda:", erro);
+      return res.status(500).json({
+        erro: erro.message || "Erro interno no servidor ao processar a venda.",
+      });
     }
   }
 
+  // Adicione este método dentro da classe VendaController:
   static async listar(req: Request, res: Response) {
     try {
       const vendas = await VendaModel.listarVendas();
       return res.json(vendas);
-    } catch (erro) {
-      console.error('Erro ao listar vendas:', erro);
-      return res.status(500).json({ erro: 'Erro ao buscar histórico de vendas.' });
+    } catch (erro: any) {
+      console.error("Erro ao listar vendas:", erro);
+      return res.status(500).json({
+        erro: "Erro interno ao carregar o histórico de vendas.",
+      });
     }
   }
-}
+  static async atualizar(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { nome_cliente, total } = req.body;
+
+      const vendaAtualizada = await VendaModel.atualizarVenda(
+        Number(id),
+        nome_cliente,
+        Number(total),
+      );
+
+      return res.json({
+        mensagem: "Venda atualizada com sucesso!",
+        venda: vendaAtualizada,
+      });
+    } catch (erro: any) {
+      console.error("Erro ao atualizar venda:", erro);
+      return res.status(500).json({ erro: "Erro ao atualizar a venda." });
+    }
+  }
+
+  static async excluir(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      await VendaModel.deletarVenda(Number(id));
+
+      return res.json({ mensagem: "Venda excluída com sucesso do histórico." });
+    } catch (erro: any) {
+      console.error("Erro ao excluir venda:", erro);
+      return res.status(500).json({ erro: "Erro ao excluir a venda." });
+    }
+  }
+} // Fechamento da classe VendaController na ultima linha

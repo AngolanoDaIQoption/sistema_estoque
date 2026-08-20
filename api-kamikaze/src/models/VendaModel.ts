@@ -1,4 +1,4 @@
-import { db } from '../config/database';
+import { db } from "../config/database";
 
 export interface ItemVendaComPreco {
   produto_id: number;
@@ -12,7 +12,7 @@ export class VendaModel {
     usuario_id: number,
     nome_cliente: string,
     valor_total: number,
-    itens: ItemVendaComPreco[]
+    itens: ItemVendaComPreco[],
   ) {
     const connection = await db.getConnection();
 
@@ -22,8 +22,8 @@ export class VendaModel {
 
       // 2. Insere o cabeçalho na tabela 'vendas'
       const [resultVenda]: any = await connection.execute(
-        'INSERT INTO vendas (usuario_id, nome_cliente, valor_total) VALUES (?, ?, ?)',
-        [usuario_id, nome_cliente, valor_total]
+        "INSERT INTO vendas (usuario_id, nome_cliente, valor_total) VALUES (?, ?, ?)",
+        [usuario_id, nome_cliente, valor_total],
       );
 
       const vendaId = resultVenda.insertId;
@@ -32,21 +32,20 @@ export class VendaModel {
       for (const item of itens) {
         // Registra o item com o preço congelado do momento
         await connection.execute(
-          'INSERT INTO itens_venda (venda_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)',
-          [vendaId, item.produto_id, item.quantidade, item.preco_unitario]
+          "INSERT INTO itens_venda (venda_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
+          [vendaId, item.produto_id, item.quantidade, item.preco_unitario],
         );
 
         // Baixa automática no estoque
         await connection.execute(
-          'UPDATE produtos SET estoque = estoque - ? WHERE id = ?',
-          [item.quantidade, item.produto_id]
+          "UPDATE produtos SET estoque = estoque - ? WHERE id = ?",
+          [item.quantidade, item.produto_id],
         );
       }
 
       // 4. Se tudo rodou sem erros, confirma as alterações no banco
       await connection.commit();
       return { success: true, vendaId };
-
     } catch (erro) {
       // 5. Se der qualquer falha, desfaz absolutamente tudo
       await connection.rollback();
@@ -71,5 +70,28 @@ export class VendaModel {
     `;
     const [rows] = await db.execute(query);
     return rows;
+  }
+  static async atualizarVenda(id: number, nome_cliente: string, total: number) {
+    // Atualiza o nome do cliente e tenta suportar total / valor_total
+    try {
+      await db.query(
+        "UPDATE vendas SET nome_cliente = ?, valor_total = ? WHERE id = ?",
+        [nome_cliente, total, id],
+      );
+    } catch (erro) {
+      // Caso a coluna no seu banco se chame 'total' em vez de 'valor_total'
+      await db.query(
+        "UPDATE vendas SET nome_cliente = ?, total = ? WHERE id = ?",
+        [nome_cliente, total, id],
+      );
+    }
+
+    return { id, nome_cliente, total };
+  }
+
+  static async deletarVenda(id: number) {
+    await db.query("DELETE FROM itens_venda WHERE venda_id = ?", [id]);
+    await db.query("DELETE FROM vendas WHERE id = ?", [id]);
+    return true;
   }
 }

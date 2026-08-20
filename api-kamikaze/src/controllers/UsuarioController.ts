@@ -30,7 +30,7 @@ export class UsuarioController {
       // 3. Gera o token JWT (use a chave secreta da sua aplicação/env)
       const secretKey = process.env.JWT_SECRET || "sua_chave_secreta_aqui";
       const token = jwt.sign(
-        { id: usuario.id, email: usuario.email, nome: usuario.nome },
+        { id: usuario.id, email: usuario.email, nome: usuario.nome, perfil: usuario.perfil },
         secretKey,
         { expiresIn: "1d" },
       );
@@ -43,6 +43,7 @@ export class UsuarioController {
           id: usuario.id,
           nome: usuario.nome,
           email: usuario.email,
+          perfil: usuario.perfil,
         },
       });
     } catch (erro) {

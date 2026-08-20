@@ -8,31 +8,11 @@ interface Categoria {
 export function GerenciarCategorias() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [nomeCategoria, setNomeCategoria] = useState("");
-
-  // Estado para controlar se a aba está aberta ou fechada (começa fechada)
-  const [estaAberto, setEstaAberto] = useState(false);
-
-  // Estado para edição
-  const [categoriaEditandoId, setCategoriaEditandoId] = useState<number | null>(
-    null,
-  );
-
-  // Estado para feedback visual
-  const [mensagem, setMensagem] = useState<{
-    texto: string;
-    tipo: "sucesso" | "erro";
-  } | null>(null);
-
-  function mostrarFeedback(texto: string, tipo: "sucesso" | "erro") {
-    setMensagem({ texto, tipo });
-    setTimeout(() => {
-      setMensagem(null);
-    }, 3000);
-  }
+  const [categoriaEditandoId, setCategoriaEditandoId] = useState<number | null>(null);
 
   async function carregarCategorias() {
+    const token = localStorage.getItem("kamikase_token");
     try {
-      const token = localStorage.getItem("kamikase_token");
       const resposta = await fetch("http://localhost:3000/api/categorias", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -49,36 +29,20 @@ export function GerenciarCategorias() {
     carregarCategorias();
   }, []);
 
-  function iniciarEdicao(cat: Categoria) {
-    setCategoriaEditandoId(cat.id);
-    setNomeCategoria(cat.nome);
-  }
-
-  function cancelarEdicao() {
-    setCategoriaEditandoId(null);
-    setNomeCategoria("");
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    if (!nomeCategoria.trim()) {
-      mostrarFeedback("Digite o nome da categoria.", "erro");
-      return;
-    }
+    if (!nomeCategoria.trim()) return alert("Digite o nome da categoria.");
 
     const token = localStorage.getItem("kamikase_token");
-    const eEdicao = categoriaEditandoId !== null;
-
-    const url = eEdicao
+    const url = categoriaEditandoId
       ? `http://localhost:3000/api/categorias/${categoriaEditandoId}`
       : "http://localhost:3000/api/categorias";
 
-    const metodo = eEdicao ? "PUT" : "POST";
+    const method = categoriaEditandoId ? "PUT" : "POST";
 
     try {
       const resposta = await fetch(url, {
-        method: metodo,
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -87,121 +51,81 @@ export function GerenciarCategorias() {
       });
 
       if (resposta.ok) {
-        mostrarFeedback(
-          eEdicao ? "Categoria atualizada!" : "Categoria cadastrada!",
-          "sucesso",
-        );
-        cancelarEdicao();
+        limparFormulario();
         carregarCategorias();
       } else {
-        mostrarFeedback("Erro ao salvar categoria.", "erro");
+        const dados = await resposta.json();
+        alert(`Erro: ${dados.erro || "Operação falhou."}`);
       }
     } catch (erro) {
-      mostrarFeedback("Erro de conexão com o servidor.", "erro");
+      alert("Erro de comunicação com o servidor.");
     }
   }
 
+  function iniciarEdicao(categoria: Categoria) {
+    setCategoriaEditandoId(categoria.id);
+    setNomeCategoria(categoria.nome);
+  }
+
+  function limparFormulario() {
+    setCategoriaEditandoId(null);
+    setNomeCategoria("");
+  }
+
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-lg mb-8 overflow-hidden transition-all">
-      {/* Cabeçalho Clicável da Aba (Accordion) */}
-      <button
-        onClick={() => setEstaAberto(!estaAberto)}
-        className="w-full p-4 text-left font-bold text-white flex justify-between items-center hover:bg-slate-750 transition cursor-pointer"
-      >
-        <span className="text-lg flex items-center gap-2">
-          Gerenciar Categorias
-          <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-normal">
-            {categorias.length} cadastradas
-          </span>
-        </span>
-
-        {/* Setinha apontando para baixo ou para cima */}
-        <svg
-          className={`w-5 h-5 text-cyan-400 transition-transform duration-200 ${
-            estaAberto ? "rotate-180" : ""
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
-
-      {/* Conteúdo Expansível (Só aparece se estaAberto === true) */}
-      {estaAberto && (
-        <div className="p-6 border-t border-slate-700/60">
-          {/* Alerta Visual Integrado */}
-          {mensagem && (
-            <div
-              className={`p-3 mb-4 rounded-lg text-sm font-semibold transition-all ${
-                mensagem.tipo === "sucesso"
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  : "bg-red-500/20 text-red-400 border border-red-500/30"
-              }`}
-            >
-              {mensagem.texto}
-            </div>
-          )}
-
-          {/* Formulário de Cadastro/Edição */}
-          <form onSubmit={handleSubmit} className="flex gap-3 mb-6">
-            <input
-              type="text"
-              placeholder="Nome da categoria"
-              value={nomeCategoria}
-              onChange={(e) => setNomeCategoria(e.target.value)}
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500"
-            />
-
-            <button
-              type="submit"
-              className={`${
-                categoriaEditandoId
-                  ? "bg-cyan-500 hover:bg-cyan-400"
-                  : "bg-cyan-500 hover:bg-cyan-400"
-              } text-slate-900 font-bold px-6 py-2.5 rounded-lg transition`}
-            >
-              {categoriaEditandoId ? "Salvar" : "Cadastrar"}
-            </button>
-
-            {categoriaEditandoId && (
-              <button
-                type="button"
-                onClick={cancelarEdicao}
-                className="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold px-4 py-2.5 rounded-lg transition"
-              >
-                Cancelar
-              </button>
-            )}
-          </form>
-
-          {/* Lista de Categorias */}
-          <div className="space-y-2">
-            {categorias.map((cat) => (
-              <div
-                key={cat.id}
-                className="flex justify-between items-center p-2.5 rounded-lg hover:bg-slate-700/50 font-semibold"
-              >
-                <span className="text-white">
-                  {cat.nome}
-                </span>
-                <button
-                  onClick={() => iniciarEdicao(cat)}
-                  className="text-cyan-400 text-sm hover:underline cursor-pointer"
-                >
-                  Editar
-                </button>
-              </div>
-            ))}
-          </div>
+    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Gerenciar Categorias</h2>
+          <p className="text-sm text-slate-400">
+            Cadastre ou edite as categorias de produtos
+          </p>
         </div>
-      )}
+        <span className="bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs font-semibold">
+          {categorias.length} cadastradas
+        </span>
+      </div>
+
+      {/* Formulário de Cadastro/Edição */}
+      <form onSubmit={handleSubmit} className="flex gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Nome da categoria"
+          value={nomeCategoria}
+          onChange={(e) => setNomeCategoria(e.target.value)}
+          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500"
+        />
+        {categoriaEditandoId && (
+          <button
+            type="button"
+            onClick={limparFormulario}
+            className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2.5 rounded-lg transition cursor-pointer"
+          >
+            Cancelar
+          </button>
+        )}
+        <button
+          type="submit"
+          className="bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold px-6 py-2.5 rounded-lg transition cursor-pointer"
+        >
+          {categoriaEditandoId ? "Salvar" : "Cadastrar"}
+        </button>
+      </form>
+
+      {/* Listagem */}
+      <div className="divide-y divide-slate-700">
+        {categorias.map((cat) => (
+          <div key={cat.id} className="py-3 flex justify-between items-center">
+            <span className="font-semibold text-slate-200">{cat.nome}</span>
+            <button
+              onClick={() => iniciarEdicao(cat)}
+              className="text-cyan-400 hover:text-cyan-300 text-sm font-bold cursor-pointer"
+            >
+              Editar
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

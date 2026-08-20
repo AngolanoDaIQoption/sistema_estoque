@@ -12,7 +12,7 @@ export default function Header() {
 
   return (
     <header className="flex items-center justify-between bg-blue-600 px-8 py-4 text-white shadow-md">
-      <h1 className="text-xl font-bold">Sistema de Estoque - Kamikase</h1>
+      <h1 className="text-xl font-bold">Sistema de Estoque - Kamikaze</h1>
 
       <div className="flex gap-3">
         {/* Botão para ir para a Dashboard */}

@@ -19,13 +19,17 @@ export default function Login() {
         senha: password,
       });
 
-      // Salva o token retornado pela API no navegador
+      // Salva o token e os dados do usuario no navegador
       localStorage.setItem("kamikase_token", response.data.token);
+      localStorage.setItem(
+        "kamikase_usuario",
+        JSON.stringify(response.data.usuario),
+      );
 
       // Redireciona para o Dashboard logado
       navigate("/dashboard");
     } catch (err) {
-      setError("E-mail ou senha inválidos!");
+      setError("E-mail ou senha invalidos!");
     }
   }
 

@@ -6,6 +6,7 @@ export interface IUsuario {
   nome: string;
   email: string;
   senha?: string;
+  perfil?: 'ADM' | 'USER';
 }
 
 export class UsuarioModel {

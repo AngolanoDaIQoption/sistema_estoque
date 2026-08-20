@@ -5,6 +5,8 @@ import PrivateRoute from "./components/PrivateRoute";
 import Register from "./pages/Register";
 import { Pdv } from "./pages/Pdv";
 import { HistoricoVendas } from "./pages/HistoricoVendas";
+import { PaginaCategorias } from "./pages/PaginaCategorias";
+import { PaginaUsuarios } from "./pages/PaginaUsuarios";
 
 export default function App() {
   return (
@@ -35,6 +37,23 @@ export default function App() {
           element={
             <PrivateRoute>
               <Dashboard />
+            </PrivateRoute>
+          }
+        />
+        {/* Páginas separadas para o menu lateral */}
+        <Route
+          path="/categorias"
+          element={
+            <PrivateRoute>
+              <PaginaCategorias />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/usuarios"
+          element={
+            <PrivateRoute>
+              <PaginaUsuarios />
             </PrivateRoute>
           }
         />

@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import Header from "../components/Header";
 import { useNavigate } from "react-router-dom";
+import { Sidebar } from "../components/Sidebar";
 import { ProdutoForm } from "../components/ProdutoForm";
-import { GerenciarCategorias } from "../components/GerenciarCategorias";
-import { GerenciarUsuarios } from "../components/GerenciarUsuarios";
 
 interface Categoria {
   id: number;
@@ -21,6 +19,12 @@ interface Produto {
 export function Dashboard() {
   const navegar = useNavigate();
 
+  // 1. Obter perfil do usuário logado
+  const usuarioLogado = JSON.parse(
+    localStorage.getItem("kamikase_usuario") || "{}",
+  );
+  const ehADM = usuarioLogado?.perfil === "ADM";
+
   // Estados de dados e controle
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -28,7 +32,10 @@ export function Dashboard() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [produtoEmEdicao, setProdutoEmEdicao] = useState<Produto | null>(null);
 
-  // 1. Ejetor automático para token vencido
+  // Estado para o campo de busca
+  const [termoBusca, setTermoBusca] = useState("");
+
+  // Ejetor automático para token vencido
   function lidarComErroDeAutenticacao(status: number) {
     if (status === 401 || status === 403) {
       alert(
@@ -42,7 +49,7 @@ export function Dashboard() {
     return false;
   }
 
-  // 2. Busca de dados inicial
+  // Busca de dados inicial
   async function carregarDadosDoEstoque() {
     const token = localStorage.getItem("kamikase_token");
     if (!token) {
@@ -85,7 +92,7 @@ export function Dashboard() {
     carregarDadosDoEstoque();
   }, []);
 
-  // 3. Função de exclusão de produto
+  // Função de exclusão de produto
   async function deletarProduto(id: number, nomeProduto: string) {
     const confirmacao = window.confirm(
       `ATENÇÃO: Tem certeza que deseja excluir o produto "${nomeProduto}"? Esta ação não pode ser desfeita.`,
@@ -113,7 +120,7 @@ export function Dashboard() {
     }
   }
 
-  // 4. Salvar Produto (Modo Cadastro / Modo Edição)
+  // Salvar Produto (Modo Cadastro / Modo Edição)
   function salvarProdutoNaTela(produtoSalvo: Produto) {
     if (produtoEmEdicao) {
       setProdutos(
@@ -132,7 +139,19 @@ export function Dashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // Estado de Carregamento
+  // Filtragem dinâmica de produtos por nome ou categoria
+  const produtosFiltrados = produtos.filter((produto) => {
+    const nomeCat =
+      categorias
+        .find((c) => c.id === produto.categoria_id)
+        ?.nome.toLowerCase() || "";
+    const termo = termoBusca.toLowerCase();
+
+    return (
+      produto.nome.toLowerCase().includes(termo) || nomeCat.includes(termo)
+    );
+  });
+
   if (carregando) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
@@ -142,129 +161,152 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-8">
-      <Header />
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex">
+      {/* Menu Lateral Fixo */}
+      <Sidebar />
 
-      <div className="max-w-6xl mx-auto mt-6">
-        {/* 1. Accordion de Gerenciar Categorias */}
-        <GerenciarCategorias />
+      {/* Conteúdo Principal de Produtos */}
+      <main className="flex-1 p-8 overflow-y-auto">
+        <div className="max-w-6xl mx-auto">
+          {/* Cabeçalho */}
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-2xl font-bold">Estoque de Produtos</h1>
+              <p className="text-sm text-slate-400">
+                Gerenciamento e controle de mercadorias
+              </p>
+            </div>
 
-        {/* 2. Accordion de Gerenciar Usuários */}
-        <GerenciarUsuarios />
-
-        {/* 2. Cabeçalho do Painel de Controle */}
-        <div className="flex justify-between items-center my-6">
-          <div>
-            <h1 className="text-2xl font-bold">Painel de Controle</h1>
-            <p className="text-sm text-slate-400">
-              Gerenciamento Operacional de Estoque
-            </p>
+            {ehADM && (
+              <button
+                onClick={() => {
+                  setProdutoEmEdicao(null);
+                  setMostrarFormulario(!mostrarFormulario);
+                }}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg font-bold transition cursor-pointer"
+              >
+                {mostrarFormulario ? "Fechar Formulário" : "+ Novo Produto"}
+              </button>
+            )}
           </div>
-          <button
-            onClick={() => {
-              setProdutoEmEdicao(null);
-              setMostrarFormulario(!mostrarFormulario);
-            }}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg font-bold transition"
-          >
-            {mostrarFormulario ? "Fechar Formulário" : "+ Novo Produto"}
-          </button>
-        </div>
 
-        {/* 3. Formulário de Novo/Editar Produto */}
-        {mostrarFormulario && (
+          {/* Campo de Busca */}
           <div className="mb-6">
-            <ProdutoForm
-              categorias={categorias}
-              aoCancelar={() => {
-                setMostrarFormulario(false);
-                setProdutoEmEdicao(null);
-              }}
-              aoSalvar={salvarProdutoNaTela}
-              produtoEditando={produtoEmEdicao}
+            <input
+              type="text"
+              placeholder="Pesquisar produto por nome ou categoria..."
+              value={termoBusca}
+              onChange={(e) => setTermoBusca(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 shadow-md"
             />
           </div>
-        )}
 
-        {/* 4. Tabela de Produtos Única com Categoria */}
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-700 text-slate-300 uppercase text-xs">
-              <tr>
-                <th className="px-6 py-3">ID</th>
-                <th className="px-6 py-3">Nome do Produto</th>
-                <th className="px-6 py-3 text-center">Categoria</th>
-                <th className="px-6 py-3 text-right">Preço</th>
-                <th className="px-6 py-3 text-center">Estoque</th>
-                <th className="px-6 py-3 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700">
-              {produtos.length === 0 ? (
+          {/* Formulário de Cadastro/Edição de Produto */}
+          {ehADM && mostrarFormulario && (
+            <div className="mb-6">
+              <ProdutoForm
+                categorias={categorias}
+                aoCancelar={() => {
+                  setMostrarFormulario(false);
+                  setProdutoEmEdicao(null);
+                }}
+                aoSalvar={salvarProdutoNaTela}
+                produtoEditando={produtoEmEdicao}
+              />
+            </div>
+          )}
+
+          {/* Tabela de Produtos */}
+          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-700 text-slate-300 uppercase text-xs">
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="px-6 py-4 text-center text-slate-400"
-                  >
-                    Nenhum produto cadastrado no banco.
-                  </td>
+                  <th className="px-6 py-3">ID</th>
+                  <th className="px-6 py-3">Nome do Produto</th>
+                  <th className="px-6 py-3 text-center">Categoria</th>
+                  <th className="px-6 py-3 text-right">Preço</th>
+                  <th className="px-6 py-3 text-center">Estoque</th>
+                  <th className="px-6 py-3 text-center">Ações</th>
                 </tr>
-              ) : (
-                produtos.map((produto) => {
-                  const nomeCat =
-                    categorias.find((c) => c.id === produto.categoria_id)
-                      ?.nome || "Sem Categoria";
-
-                  return (
-                    <tr
-                      key={produto.id}
-                      className="hover:bg-slate-700/50 transition"
+              </thead>
+              <tbody className="divide-y divide-slate-700">
+                {produtosFiltrados.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-6 py-4 text-center text-slate-400"
                     >
-                      <td className="px-6 py-4 font-mono">{produto.id}</td>
-                      <td className="px-6 py-4 font-bold">{produto.nome}</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="bg-cyan-950 text-cyan-300 border border-cyan-800 px-2.5 py-1 rounded-md text-xs font-semibold inline-block">
-                          {nomeCat}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        R$ {Number(produto.preco).toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-bold ${
-                            produto.estoque < 5
-                              ? "bg-red-900/50 text-red-400"
-                              : "bg-emerald-900/50 text-emerald-400"
-                          }`}
-                        >
-                          {produto.estoque} un
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center space-x-3">
-                        <button
-                          onClick={() => iniciarEdicao(produto)}
-                          className="text-cyan-400 hover:text-cyan-300 font-bold"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() =>
-                            deletarProduto(produto.id, produto.nome)
-                          }
-                          className="text-red-400 hover:text-red-300 font-bold"
-                        >
-                          Excluir
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                      {termoBusca
+                        ? "Nenhum produto encontrado com essa pesquisa."
+                        : "Nenhum produto cadastrado no banco."}
+                    </td>
+                  </tr>
+                ) : (
+                  produtosFiltrados.map((produto) => {
+                    const nomeCat =
+                      categorias.find((c) => c.id === produto.categoria_id)
+                        ?.nome || "Sem Categoria";
+
+                    return (
+                      <tr
+                        key={produto.id}
+                        className="hover:bg-slate-700/50 transition"
+                      >
+                        <td className="px-6 py-4 font-mono">{produto.id}</td>
+                        <td className="px-6 py-4 font-bold">{produto.nome}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="bg-cyan-950 text-cyan-300 border border-cyan-800 px-2.5 py-1 rounded-md text-xs font-semibold inline-block">
+                            {nomeCat}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          R$ {Number(produto.preco).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold ${
+                              produto.estoque < 5
+                                ? "bg-red-900/50 text-red-400"
+                                : "bg-emerald-900/50 text-emerald-400"
+                            }`}
+                          >
+                            {produto.estoque} un
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4 text-center">
+                          {ehADM ? (
+                            <div className="flex justify-center gap-3">
+                              <button
+                                onClick={() => iniciarEdicao(produto)}
+                                className="text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() =>
+                                  deletarProduto(produto.id, produto.nome)
+                                }
+                                className="text-red-400 hover:text-red-300 font-bold cursor-pointer"
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 text-xs font-semibold">
+                              Sem permissão
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
