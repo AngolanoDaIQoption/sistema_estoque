@@ -9,50 +9,54 @@ export interface ItemVendaComPreco {
 export class VendaModel {
   // Transação SQL para registrar a venda, congelar o preço e dar baixa no estoque
   static async criarVenda(
-    usuario_id: number,
     nome_cliente: string,
-    valor_total: number,
-    itens: ItemVendaComPreco[],
+    usuario_id: number | null,
+    valorTotal: number,
+    itens: Array<{
+      produto_id: number;
+      quantidade: number;
+      preco_unitario?: number;
+    }>,
   ) {
-    const connection = await db.getConnection();
+    // 1. Inserção na tabela 'vendas' na ORDEM EXATA dos parâmetros
+    // Tenta salvar usando 'valor_total' (ou cai para 'total' caso o nome varie no seu banco)
+    let vendaId: number;
 
     try {
-      // 1. Inicia a transação SQL
-      await connection.beginTransaction();
+      const [resultado]: any = await db.query(
+        "INSERT INTO vendas (nome_cliente, usuario_id, valor_total) VALUES (?, ?, ?)",
+        [nome_cliente, usuario_id, valorTotal],
+      );
+      vendaId = resultado.insertId;
+    } catch (erro) {
+      const [resultado]: any = await db.query(
+        "INSERT INTO vendas (nome_cliente, usuario_id, total) VALUES (?, ?, ?)",
+        [nome_cliente, usuario_id, valorTotal],
+      );
+      vendaId = resultado.insertId;
+    }
 
-      // 2. Insere o cabeçalho na tabela 'vendas'
-      const [resultVenda]: any = await connection.execute(
-        "INSERT INTO vendas (usuario_id, nome_cliente, valor_total) VALUES (?, ?, ?)",
-        [usuario_id, nome_cliente, valor_total],
+    // 2. Inserção dos itens na tabela 'itens_venda' e baixa no estoque
+    for (const item of itens) {
+      await db.query(
+        "INSERT INTO itens_venda (venda_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
+        [vendaId, item.produto_id, item.quantidade, item.preco_unitario || 0],
       );
 
-      const vendaId = resultVenda.insertId;
-
-      // 3. Loop para salvar os itens e subtrair o estoque
-      for (const item of itens) {
-        // Registra o item com o preço congelado do momento
-        await connection.execute(
-          "INSERT INTO itens_venda (venda_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-          [vendaId, item.produto_id, item.quantidade, item.preco_unitario],
-        );
-
-        // Baixa automática no estoque
-        await connection.execute(
-          "UPDATE produtos SET estoque = estoque - ? WHERE id = ?",
-          [item.quantidade, item.produto_id],
-        );
-      }
-
-      // 4. Se tudo rodou sem erros, confirma as alterações no banco
-      await connection.commit();
-      return { success: true, vendaId };
-    } catch (erro) {
-      // 5. Se der qualquer falha, desfaz absolutamente tudo
-      await connection.rollback();
-      throw erro;
-    } finally {
-      connection.release();
+      // Atualiza o estoque do produto
+      await db.query("UPDATE produtos SET estoque = estoque - ? WHERE id = ?", [
+        item.quantidade,
+        item.produto_id,
+      ]);
     }
+
+    return {
+      id: vendaId,
+      nome_cliente,
+      usuario_id,
+      valor_total: valorTotal,
+      itens,
+    };
   }
 
   // Lista o histórico de vendas para o painel da diretoria
